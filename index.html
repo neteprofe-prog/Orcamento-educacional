@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modelo Orçamentário Integrado</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -127,6 +128,7 @@
             display: flex;
             gap: 10px;
             margin: 20px 0;
+            flex-wrap: wrap;
         }
         button {
             padding: 12px 24px;
@@ -149,6 +151,12 @@
         }
         button.secondary:hover {
             background: #777;
+        }
+        button.danger {
+            background: #f44336;
+        }
+        button.danger:hover {
+            background: #da190b;
         }
         .info-box {
             background: #e3f2fd;
@@ -208,6 +216,16 @@
             gap: 20px;
             margin: 20px 0;
         }
+        .delete-btn {
+            background: #f44336;
+            padding: 6px 12px;
+            font-size: 12px;
+            width: 100%;
+            margin-top: 5px;
+        }
+        .delete-btn:hover {
+            background: #da190b;
+        }
         @media (max-width: 768px) {
             .grid-2 {
                 grid-template-columns: 1fr;
@@ -218,13 +236,43 @@
             td, th {
                 padding: 8px;
             }
+            .btn-group {
+                flex-direction: column;
+            }
+            button {
+                width: 100%;
+            }
+        }
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+                max-width: 100%;
+            }
+            .tabs {
+                display: none;
+            }
+            .btn-group {
+                display: none;
+            }
+            button {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container" id="conteudoParaPDF">
         <h1>📊 Modelo Orçamentário Integrado</h1>
         <p class="subtitle">Sistema para trabalhar com Base Zero, Flexível, Contínuo e Cenários</p>
+
+        <div class="btn-group">
+            <button onclick="exportarPDF()">📄 Exportar para PDF</button>
+            <button class="secondary" onclick="window.print()">🖨️ Imprimir</button>
+        </div>
 
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab(0)">Entrada de Dados</button>
@@ -282,7 +330,23 @@
                 </tbody>
             </table>
 
-            <button onclick="salvarDados()">Salvar Dados de Entrada</button>
+            <h3 style="margin: 30px 0 20px 0;">Variáveis Customizadas</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Descrição</th>
+                        <th>Valor</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="variaveisCustomizadas">
+                </tbody>
+            </table>
+
+            <div class="btn-group">
+                <button onclick="adicionarVariavel()">+ Adicionar Variável</button>
+                <button class="secondary" onclick="salvarDados()">Salvar Dados de Entrada</button>
+            </div>
         </div>
 
         <!-- TAB 2: BASE ZERO -->
@@ -306,8 +370,10 @@
                 </tbody>
             </table>
 
-            <button onclick="adicionarCategoriaBaseZero()">+ Adicionar Categoria</button>
-            <button class="secondary" onclick="calcularBaseZero()">Calcular Total</button>
+            <div class="btn-group">
+                <button onclick="adicionarCategoriaBaseZero()">+ Adicionar Categoria</button>
+                <button class="secondary" onclick="calcularBaseZero()">Calcular Total</button>
+            </div>
 
             <table style="margin-top: 30px;">
                 <tr class="total-row highlight">
@@ -543,7 +609,8 @@
             impostos: 18,
             baseZero: [],
             flexivel: [],
-            cenarios: {}
+            cenarios: {},
+            variaveisCustomizadas: []
         };
 
         // Categorias padrão para Base Zero
@@ -570,16 +637,6 @@
             document.querySelectorAll('.tab-btn')[index].classList.add('active');
         }
 
-        function salvarDados() {
-            dadosGlobais.empresa = document.getElementById('empresa').value || 'Empresa Exemplo';
-            dadosGlobais.periodo = document.getElementById('periodo').value || '2026';
-            dadosGlobais.volumeVendas = parseFloat(document.getElementById('volumeVendas').value);
-            dadosGlobais.precoUnitario = parseFloat(document.getElementById('precoUnitario').value);
-            dadosGlobais.inflacao = parseFloat(document.getElementById('inflacao').value) / 100;
-            dadosGlobais.impostos = parseFloat(document.getElementById('impostos').value) / 100;
-            alert('Dados salvos com sucesso!');
-        }
-
         function formatarMoeda(valor) {
             return new Intl.NumberFormat('pt-BR', {
                 style: 'currency',
@@ -587,10 +644,64 @@
             }).format(valor);
         }
 
+        // EXPORTAR PARA PDF
+        function exportarPDF() {
+            const element = document.getElementById('conteudoParaPDF');
+            const opt = {
+                margin: 10,
+                filename: `Orcamento_${document.getElementById('empresa').value || 'Educacional'}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+
+        // ENTRADA DE DADOS
+        function adicionarVariavel() {
+            const tbody = document.getElementById('variaveisCustomizadas');
+            const row = document.createElement('tr');
+            const id = Date.now();
+            row.id = 'var_' + id;
+            row.innerHTML = `
+                <td><input type="text" placeholder="Descrição" class="var-desc" style="width: 100%;"></td>
+                <td><input type="number" placeholder="Valor" class="var-valor" style="width: 100%;" step="0.01"></td>
+                <td><button class="delete-btn" onclick="deletarVariavel(${id})">Deletar</button></td>
+            `;
+            tbody.appendChild(row);
+        }
+
+        function deletarVariavel(id) {
+            document.getElementById('var_' + id).remove();
+        }
+
+        function salvarDados() {
+            dadosGlobais.empresa = document.getElementById('empresa').value || 'Empresa Exemplo';
+            dadosGlobais.periodo = document.getElementById('periodo').value || '2026';
+            dadosGlobais.volumeVendas = parseFloat(document.getElementById('volumeVendas').value);
+            dadosGlobais.precoUnitario = parseFloat(document.getElementById('precoUnitario').value);
+            dadosGlobais.inflacao = parseFloat(document.getElementById('inflacao').value) / 100;
+            dadosGlobais.impostos = parseFloat(document.getElementById('impostos').value) / 100;
+            
+            // Salvar variáveis customizadas
+            dadosGlobais.variaveisCustomizadas = [];
+            document.querySelectorAll('#variaveisCustomizadas tr').forEach(row => {
+                const desc = row.querySelector('.var-desc')?.value;
+                const valor = parseFloat(row.querySelector('.var-valor')?.value);
+                if (desc && valor) {
+                    dadosGlobais.variaveisCustomizadas.push({ desc, valor });
+                }
+            });
+            
+            alert('Dados salvos com sucesso!');
+        }
+
         // BASE ZERO
         function adicionarCategoriaBaseZero() {
             const table = document.getElementById('baseZeroTable');
+            const id = Date.now();
             const row = document.createElement('tr');
+            row.id = 'bz_' + id;
             row.innerHTML = `
                 <td><input type="text" placeholder="Nova categoria" class="bz-nome" style="width: 100%;"></td>
                 <td><input type="number" step="0.01" class="bz-valor" style="width: 100%;"></td>
@@ -619,7 +730,9 @@
         // ORÇAMENTO FLEXÍVEL
         function adicionarCategoriaFlexivel() {
             const table = document.getElementById('flexivelTable');
+            const id = Date.now();
             const row = document.createElement('tr');
+            row.id = 'flex_' + id;
             row.innerHTML = `
                 <td><input type="text" placeholder="Tipo despesa" class="flex-nome" style="width: 100%;"></td>
                 <td><input type="number" step="0.01" class="flex-fixo" placeholder="Valor fixo" style="width: 100%;"></td>
@@ -781,7 +894,6 @@
 
         // Inicializar
         window.onload = () => {
-            // Preencher tabelas padrão
             const baseZeroTable = document.getElementById('baseZeroTable');
             categoriasBaseZero.forEach(cat => {
                 const row = document.createElement('tr');
